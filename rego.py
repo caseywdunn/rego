@@ -81,7 +81,24 @@ class TestRegoMethods(unittest.TestCase):
         self.assertEqual(overlap_assembler(sequences, 3), ["ATCGTACGCGT"])
         self.assertEqual(overlap_assembler(["CGTAGGTA", "AAAAAAAAA", "GGGGGGGGG"], 5), ["CGTAGGTA", "AAAAAAAAA", "GGGGGGGGG"])
 
-def main(oligo, input_file):
+
+def trim_read(oligo, read, before, after):
+    forward_regex = primer_to_regex(oligo)
+    
+    forward_match = re.search(forward_regex, read)
+    
+    if forward_match:
+        start = forward_match.start()
+        end = forward_match.end()
+        if before:
+            start = max(0, start - before)
+        if after:
+            end = min(len(read), end + after)
+        return read[start:end]
+    else:
+        return read
+
+def main(oligo, input_file, before, after):
     forward_regex = primer_to_regex(oligo)
     reverse_regex = primer_to_regex(reverse_complement(oligo))
     
@@ -92,11 +109,16 @@ def main(oligo, input_file):
             i += 1
             if i % 4 != 2:
                 continue
-            line = line.strip()
+            
             if re.search(forward_regex, line):
-                hits.append(line)
+                read = line.strip()
+                read = trim_read(oligo, read, before, after)
+                hits.append(read)
             if re.search(reverse_regex, line):
-                hits.append(reverse_complement(line))
+                read = line.strip()
+                read = reverse_complement(read)
+                read = trim_read(oligo, read, before, after)
+                hits.append(read)
                 
     print(f"Hits found: {len(hits)}")
     
@@ -125,6 +147,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Use regular expressions with an oligo to extract a specified region from a sequence. The oligo can contain IUPAC degenerate nucleotide codes.")
     parser.add_argument("oligo", type=str, help="the oligo sequence")
     parser.add_argument("input", type=str, help="input fastq file")
+    parser.add_argument("before", type=int, help="number of nucleotides to preserve before the oligo", default=None)
+    parser.add_argument("after", type=int, help="number of nucleotides to preserve after the oligo", default=None)
     parser.add_argument("--test", action="store_true", help="run tests")
     
     args = parser.parse_args()
@@ -133,4 +157,4 @@ if __name__ == "__main__":
         unittest.main(argv=[''], exit=False)
         exit()
 
-    main(args.oligo, args.input)
+    main(args.oligo, args.input, args.before, args.after)
