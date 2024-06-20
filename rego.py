@@ -33,6 +33,23 @@ def reverse_complement(sequence):
                   'H': 'D', 'D': 'H', 'N': 'N'}
     return ''.join(complement[nuc] for nuc in reversed(sequence))
 
+class ReadHit():
+    def __init__(self, read, oligo_start, oligo_end):
+        self.read = read
+        self.oligo_start = oligo_start
+        self.oligo_end = oligo_end
+    
+    def get_seq(self, lowercase=True):
+        if lowercase:
+            read = self.read.lower()
+            # Make the oligo uppercase
+            read = read[:self.oligo_start] + read[self.oligo_start:self.oligo_end].upper() + read[self.oligo_end:]
+            return read
+        else:
+            return self.read.upper()
+        return self.read[self.start:self.end]
+
+
 def merge (seq1, seq2, overlap=15):
     # Given two sequences, return the merged sequence if seq2 extends seq1
     # and overlaps the end of seq1 by at least the specified number of nucleotides
@@ -45,6 +62,8 @@ def merge (seq1, seq2, overlap=15):
 def overlap_assembler(sequences, overlap=15):
     # Given a list of sequences, return a list of merged sequence
     # Stop when no more sequences can be merged
+    
+
     while True:
         merged = False
         for i in range(len(sequences)):
@@ -86,6 +105,8 @@ def trim_read(oligo, read, before, after):
     forward_regex = primer_to_regex(oligo)
     
     forward_match = re.search(forward_regex, read)
+
+    read = read.lower()
     
     if forward_match:
         start = forward_match.start()
@@ -94,11 +115,15 @@ def trim_read(oligo, read, before, after):
             start = max(0, start - before)
         if after:
             end = min(len(read), end + after)
+
+        # Make the oligo uppercase
+        read = read[:start] + read[start:end].upper() + read[end:]
+
         return read[start:end]
     else:
         return read
 
-def main(oligo, input_file, before, after):
+def main(oligo, input_file, before, after, max_hits):
     forward_regex = primer_to_regex(oligo)
     reverse_regex = primer_to_regex(reverse_complement(oligo))
     
@@ -110,27 +135,37 @@ def main(oligo, input_file, before, after):
             if i % 4 != 2:
                 continue
             
-            if re.search(forward_regex, line):
-                read = line.strip()
-                read = trim_read(oligo, read, before, after)
-                hits.append(read)
+            if len(hits) >= max_hits:
+                break
+            
             if re.search(reverse_regex, line):
+                line = line.strip()
+                line = reverse_complement(line)
+
+            forward_re = re.search(forward_regex, line)
+            if forward_re:
                 read = line.strip()
-                read = reverse_complement(read)
-                read = trim_read(oligo, read, before, after)
-                hits.append(read)
+                oligo_start = forward_re.start()
+                oligo_end = forward_re.end()
+                hit = ReadHit(read, oligo_start, oligo_end)
+                hits.append(hit)
                 
     print(f"Hits found: {len(hits)}")
-    
+
+    # Sort the hits by hit.oligo_start
+    hits.sort(key=lambda x: x.oligo_start)
+
+    # Loop through the hits and get the maximum number of characters before and after oligo_start
+    max_before = 0
+    max_after = 0
     for hit in hits:
-        print(hit)
-    print("\n")
+        max_before = max(max_before, hit.oligo_start)
+        max_after = max(max_after, len(hit.read) - hit.oligo_start)
     
-    max_hits = 20
-    if len(hits) > max_hits:
-        print(f"More than {max_hits} hits found. Only the first {max_hits} will be assembled.")
-        hits = hits[:max_hits]
-        
+    # Print the hits, but pad with spaces so that the oligo is in the same position
+    for hit in hits:
+        print(f"{' ' * (max_before - hit.oligo_start)}{hit.get_seq()}")
+    print("\n")
         
     assembled = overlap_assembler(hits)
     assembled.sort(key=len, reverse=True)
@@ -147,8 +182,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Use regular expressions with an oligo to extract a specified region from a sequence. The oligo can contain IUPAC degenerate nucleotide codes.")
     parser.add_argument("oligo", type=str, help="the oligo sequence")
     parser.add_argument("input", type=str, help="input fastq file")
-    parser.add_argument("before", type=int, help="number of nucleotides to preserve before the oligo", default=None)
-    parser.add_argument("after", type=int, help="number of nucleotides to preserve after the oligo", default=None)
+    parser.add_argument("--before", type=int, help="number of nucleotides to preserve before the oligo", default=None)
+    parser.add_argument("--after", type=int, help="number of nucleotides to preserve after the oligo", default=None)
+    parser.add_argument("--max_hits", type=int, help="maximum number of read hits to retrieve", default=20)
     parser.add_argument("--test", action="store_true", help="run tests")
     
     args = parser.parse_args()
@@ -157,4 +193,4 @@ if __name__ == "__main__":
         unittest.main(argv=[''], exit=False)
         exit()
 
-    main(args.oligo, args.input, args.before, args.after)
+    main(args.oligo, args.input, args.before, args.after, args.max_hits)
