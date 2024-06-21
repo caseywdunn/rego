@@ -123,7 +123,7 @@ def trim_read(oligo, read, before, after):
     else:
         return read
 
-def main(oligo, input_file, before, after, max_hits):
+def main(oligo, input_file, output_file, before, after, max_hits):
     forward_regex = primer_to_regex(oligo)
     reverse_regex = primer_to_regex(reverse_complement(oligo))
     
@@ -162,26 +162,37 @@ def main(oligo, input_file, before, after, max_hits):
         max_before = max(max_before, hit.oligo_start)
         max_after = max(max_after, len(hit.read) - hit.oligo_start)
     
-    # Print the hits, but pad with spaces so that the oligo is in the same position
+    # create hit_lines of output text
+    hit_lines = []
+    longest_line = 0
     for hit in hits:
-        print(f"{' ' * (max_before - hit.oligo_start)}{hit.get_seq()}")
-    print("\n")
-        
-    assembled = overlap_assembler(hits)
-    assembled.sort(key=len, reverse=True)
-    print("Assembled sequences:")
+        new_line = f"{'-' * (max_before - hit.oligo_start)}{hit.get_seq()}"
+        longest_line = max(longest_line, len(new_line))
+        hit_lines.append(new_line)
     
-    n = 0
-    for sequence in assembled:
-        print(f"> Sequence {n}:")
-        print(sequence)
-        n += 1
+    # Loop through the hit_lines and:
+    # - pad the trailing ends with - to make them all the same length
+    # add a line label
+    for i in range(len(hit_lines)):
+        line = hit_lines[i].ljust(longest_line, '-')
+        label = f"read_{i}".ljust(12)
+        hit_lines[i] = f"read_{label}    {line}"
+
+    # Create a string that has all the lines in phylip format
+    phylip_lines = f"{len(hit_lines)} {longest_line}\n" + "\n".join(hit_lines)
+    print(phylip_lines)
+
+    # Write the output to a file
+    if output_file:
+        with open(output_file + ".reads.phy", 'w') as f:
+            f.write(phylip_lines)
     
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Use regular expressions with an oligo to extract a specified region from a sequence. The oligo can contain IUPAC degenerate nucleotide codes.")
     parser.add_argument("oligo", type=str, help="the oligo sequence")
     parser.add_argument("input", type=str, help="input fastq file")
+    parser.add_argument("--output", type=str, help="Name to prepend to output, can include a path", default=None)
     parser.add_argument("--before", type=int, help="number of nucleotides to preserve before the oligo", default=None)
     parser.add_argument("--after", type=int, help="number of nucleotides to preserve after the oligo", default=None)
     parser.add_argument("--max_hits", type=int, help="maximum number of read hits to retrieve", default=20)
@@ -193,4 +204,4 @@ if __name__ == "__main__":
         unittest.main(argv=[''], exit=False)
         exit()
 
-    main(args.oligo, args.input, args.before, args.after, args.max_hits)
+    main(args.oligo, args.input, args.output, args.before, args.after, args.max_hits)
