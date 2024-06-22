@@ -1,6 +1,7 @@
 import argparse
 import re
 import unittest
+import numpy as np
 # A contraction of "regular expression with oligo"
 # written by: Casey Dunn, casey.dunn@yale.edu, https://dunnlab.org
 
@@ -55,14 +56,17 @@ class ReadHit():
         # Consider every possible overlap, and return 0 if no perfect overlap is found
 
         overlap = 0
-        for i in range(0, len(self.read)):
-            if self.read[i:] == other.read[:len(self.read) - i]:
-                overlap = max(overlap, len(self.read) - i)
-        
-        for i in range(0, len(other.read)):
-            if other.read[i:] == self.read[:len(other.read) - i]:
-                overlap = max(overlap, len(self.read) - i)
+        # Check if one read is a subset of the other
+        if self.read in other.read or other.read in self.read:
+            overlap = min(len(self.read), len(other.read))
+        else:
+            for i in range(0, len(self.read)):
+                if self.read[i:] == other.read[:len(self.read) - i]:
+                    overlap = max(overlap, len(self.read) - i)
 
+            for i in range(0, len(other.read)):
+                if other.read[i:] == self.read[:len(other.read) - i]:
+                    overlap = max(overlap, len(other.read) - i)
         return overlap
 
 def merge (seq1, seq2, overlap=15):
@@ -120,6 +124,16 @@ class TestRegoMethods(unittest.TestCase):
         self.assertEqual(read1.get_perfect_overlap(read2), 42)
         self.assertEqual(read2.get_perfect_overlap(read1), 42)
 
+        read1 = ReadHit("AGTAACAAACGCGTGTACTGGGATTCGATTCCCTTAACAGGTCAGTCG", 0, 8)
+        read2 = ReadHit(      "AAACGCGTGTAC", 0, 7)
+        self.assertEqual(read1.get_perfect_overlap(read2), 12)
+        self.assertEqual(read2.get_perfect_overlap(read1), 12)
+
+        read1 = ReadHit("AGTAACAAACGCGTGTACT", 0, 8)
+        read2 = ReadHit("GGGATTCGATTCCCTTAACAGGTCAGTCG", 0, 7)
+        self.assertEqual(read1.get_perfect_overlap(read2), 0)
+        self.assertEqual(read2.get_perfect_overlap(read1), 0)
+
 
 
 def trim_read(oligo, read, before, after):
@@ -143,6 +157,26 @@ def trim_read(oligo, read, before, after):
         return read[start:end]
     else:
         return read
+
+def find_components(hits, overlap):
+    # create adjacency matrix
+    n = len(hits)
+    adj = np.zeros((n, n))
+    for i in range(n):
+        for j in range(n):
+            adj[i, j] = hits[i].get_perfect_overlap(hits[j])
+
+    # find connected components
+    components = []
+    for i in range(n):
+        if not any([adj[i, j] >= overlap for j in range(n)]):
+            components.append([i])
+        else:
+            for component in components:
+                if any([adj[i, j] >= overlap for j in component]):
+                    component.append(i)
+                    break
+    return components
 
 def main(oligo, input_file, output_file, before, after, max_hits):
     forward_regex = primer_to_regex(oligo)
