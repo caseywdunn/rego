@@ -48,7 +48,22 @@ class ReadHit():
         else:
             return self.read.upper()
         return self.read[self.start:self.end]
+    
+    def get_perfect_overlap(self, other):
+        # Given another ReadHit, return the length of perfect overlap between the two
+        # The match must be perfect over the entire length of the overlap 
+        # Consider every possible overlap, and return 0 if no perfect overlap is found
 
+        overlap = 0
+        for i in range(0, len(self.read)):
+            if self.read[i:] == other.read[:len(self.read) - i]:
+                overlap = max(overlap, len(self.read) - i)
+        
+        for i in range(0, len(other.read)):
+            if other.read[i:] == self.read[:len(other.read) - i]:
+                overlap = max(overlap, len(self.read) - i)
+
+        return overlap
 
 def merge (seq1, seq2, overlap=15):
     # Given two sequences, return the merged sequence if seq2 extends seq1
@@ -58,7 +73,7 @@ def merge (seq1, seq2, overlap=15):
         if seq2.startswith(seq1[i:]):
             return seq1[:i] + seq2
     return ''
-    
+
 def overlap_assembler(sequences, overlap=15):
     # Given a list of sequences, return a list of merged sequence
     # Stop when no more sequences can be merged
@@ -176,7 +191,10 @@ def main(oligo, input_file, output_file, before, after, max_hits):
     for i in range(len(hit_lines)):
         line = hit_lines[i].ljust(longest_line, '-')
         label = f"read_{i}".ljust(12)
-        hit_lines[i] = f"read_{label}    {line}"
+        hit_lines[i] = f"{label}    {line}"
+    
+    # Partition into components of hits that contain perfect overlaps
+    # components = find_components(hit_lines, 20)
 
     # Create a string that has all the lines in phylip format
     phylip_lines = f"{len(hit_lines)} {longest_line}\n" + "\n".join(hit_lines)
