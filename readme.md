@@ -12,3 +12,11 @@ python rego.py TGGTTGATCCTGCCAGT Agalma_elegans.18s.64.extracted.fastq
 ## Test data
 
 `Agalma_elegans.18s.64.fastq` - 64 sequence reads from the siphonophore *Agalma elegans* that contain the 18S sequence `TGGTTGATCCTGCCAGT`
+
+## Development
+
+To run tests:
+
+    python rego.py GG null.fastq --test
+
+The first two arguments are ignored when running a test and can be any strings.

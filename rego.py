@@ -78,7 +78,6 @@ def overlap_assembler(sequences, overlap=15):
     # Given a list of sequences, return a list of merged sequence
     # Stop when no more sequences can be merged
     
-
     while True:
         merged = False
         for i in range(len(sequences)):
@@ -114,6 +113,13 @@ class TestRegoMethods(unittest.TestCase):
         sequences = ["ATCGTACG", "TACGCGT", "CGTACGCGT"]
         self.assertEqual(overlap_assembler(sequences, 3), ["ATCGTACGCGT"])
         self.assertEqual(overlap_assembler(["CGTAGGTA", "AAAAAAAAA", "GGGGGGGGG"], 5), ["CGTAGGTA", "AAAAAAAAA", "GGGGGGGGG"])
+    
+    def test_get_perfect_overlap(self):
+        read1 = ReadHit("AGTAACAAACGCGTGTACTGGGATTCGATTCCCTTAACAGGTCAGTCG", 0, 8)
+        read2 = ReadHit(      "AAACGCGTGTACTGGGATTCGATTCCCTTAACAGGTCAGTCGAGTGCC", 0, 7)
+        self.assertEqual(read1.get_perfect_overlap(read2), 42)
+        self.assertEqual(read2.get_perfect_overlap(read1), 42)
+
 
 
 def trim_read(oligo, read, before, after):
