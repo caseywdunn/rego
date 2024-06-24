@@ -134,6 +134,12 @@ class TestRegoMethods(unittest.TestCase):
         self.assertEqual(read1.get_perfect_overlap(read2), 0)
         self.assertEqual(read2.get_perfect_overlap(read1), 0)
 
+    def test_find_components(self):
+        hits = [ReadHit("AGTAACAAACGCGTGTACTGGGATTCGATTCCCTTAACAGGTCAGTCG", 0, 8),
+                ReadHit(      "AAACGCGTGTACTGGGATTCGATTCCCTTAACAGGTCAGTCGAGTGCC", 0, 7),
+                ReadHit("GGGGGGGGGCCCCCCCTTTTTTTTAAAAAA", 0, 7)]
+        self.assertEqual(find_components(hits, 20), [[0, 1], [2]])
+
 
 
 def trim_read(oligo, read, before, after):
@@ -158,6 +164,26 @@ def trim_read(oligo, read, before, after):
     else:
         return read
 
+def dfs(node, adj_matrix, visited, component):
+    visited[node] = True
+    component.append(node)
+    for neighbor, is_connected in enumerate(adj_matrix[node]):
+        if is_connected and not visited[neighbor]:
+            dfs(neighbor, adj_matrix, visited, component)
+
+def find_connected_components(adj_matrix):
+    n = len(adj_matrix)  # Number of nodes
+    visited = [False] * n
+    components = []
+    
+    for node in range(n):
+        if not visited[node]:
+            component = []
+            dfs(node, adj_matrix, visited, component)
+            components.append(component)
+    
+    return components
+
 def find_components(hits, overlap):
     # create adjacency matrix
     n = len(hits)
@@ -166,16 +192,11 @@ def find_components(hits, overlap):
         for j in range(n):
             adj[i, j] = hits[i].get_perfect_overlap(hits[j])
 
+    # regularize adjacency matrix
+    adj = np.where(adj >= overlap, 1, 0)
+
     # find connected components
-    components = []
-    for i in range(n):
-        if not any([adj[i, j] >= overlap for j in range(n)]):
-            components.append([i])
-        else:
-            for component in components:
-                if any([adj[i, j] >= overlap for j in component]):
-                    component.append(i)
-                    break
+    components = find_connected_components(adj)
     return components
 
 def main(oligo, input_file, output_file, before, after, max_hits):
