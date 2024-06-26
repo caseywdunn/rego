@@ -199,6 +199,43 @@ def find_components(hits, overlap):
     components = find_connected_components(adj)
     return components
 
+def get_consensus(lines):
+    # Create a numpy array where each row is a line
+    # and each column is a nucleotide
+    # The lines are already padded
+
+    n = len(lines)
+    m = len(lines[0])
+    matrix = np.zeros((n, m), dtype=np.uint8)
+    for i in range(n):
+        for j in range(m):
+            matrix[i, j] = ord(lines[i][j])
+
+    # Create a consensus sequence
+    consensus = ""
+    for j in range(m):
+        counts = dict()
+        for i in range(n):
+            if matrix[i, j] in counts:
+                counts[matrix[i, j]] += 1
+            else:
+                counts[matrix[i, j]] = 1
+        
+         # ignore - unless it is the only character
+        max_count = 0
+        max_nuc = 0
+        counts.pop(ord('-'), None)
+        if len(counts) == 0:
+            consensus += '-'
+        else:
+            for nuc, count in counts.items():
+                if count > max_count:
+                    max_count = count
+                    max_nuc = nuc
+            consensus += chr(max_nuc)
+
+    return consensus
+
 def main(oligo, input_file, output_file, before, after, max_hits):
     forward_regex = primer_to_regex(oligo)
     reverse_regex = primer_to_regex(reverse_complement(oligo))
@@ -231,40 +268,64 @@ def main(oligo, input_file, output_file, before, after, max_hits):
     # Sort the hits by hit.oligo_start
     hits.sort(key=lambda x: x.oligo_start)
 
-    # Loop through the hits and get the maximum number of characters before and after oligo_start
-    max_before = 0
-    max_after = 0
-    for hit in hits:
-        max_before = max(max_before, hit.oligo_start)
-        max_after = max(max_after, len(hit.read) - hit.oligo_start)
-    
-    # create hit_lines of output text
-    hit_lines = []
-    longest_line = 0
-    for hit in hits:
-        new_line = f"{'-' * (max_before - hit.oligo_start)}{hit.get_seq()}"
-        longest_line = max(longest_line, len(new_line))
-        hit_lines.append(new_line)
-    
-    # Loop through the hit_lines and:
-    # - pad the trailing ends with - to make them all the same length
-    # add a line label
-    for i in range(len(hit_lines)):
-        line = hit_lines[i].ljust(longest_line, '-')
-        label = f"read_{i}".ljust(12)
-        hit_lines[i] = f"{label}    {line}"
-    
-    # Partition into components of hits that contain perfect overlaps
-    # components = find_components(hit_lines, 20)
+    # Find components and create a list of lists of hits that are connected
+    components = find_components(hits, 20)
 
-    # Create a string that has all the lines in phylip format
-    phylip_lines = f"{len(hit_lines)} {longest_line}\n" + "\n".join(hit_lines)
-    print(phylip_lines)
+    hits_grouped = []
+    for component in components:
+        hits_grouped.append([hits[i] for i in component])
 
-    # Write the output to a file
+    consensuses = dict()
+    
+    for c, group in enumerate(hits_grouped):
+        print(f"Component {c + 1}")
+        for hit in group:
+            print(hit.get_seq())
+        print()
+
+
+        # Loop through the hits and get the maximum number of characters before and after oligo_start
+        max_before = 0
+        max_after = 0
+        for hit in group:
+            max_before = max(max_before, hit.oligo_start)
+            max_after = max(max_after, len(hit.read) - hit.oligo_start)
+        
+        # create hit_lines of output text
+        hit_lines = []
+        longest_line = 0
+        for hit in group:
+            new_line = f"{'-' * (max_before - hit.oligo_start)}{hit.get_seq()}"
+            longest_line = max(longest_line, len(new_line))
+            hit_lines.append(new_line)
+        
+        # Loop through the hit_lines and:
+        # - pad the trailing ends with - to make them all the same length
+        # add a line label
+        for i in range(len(hit_lines)):
+            line = hit_lines[i].ljust(longest_line, '-')
+            label = f"read_{i}".ljust(12)
+            hit_lines[i] = f"{label}    {line}"
+
+        # Create a string that has all the lines in phylip format
+        phylip_lines = f"{len(hit_lines)} {longest_line}\n" + "\n".join(hit_lines)
+        print(f"Phylip format for component {c}")
+        print(phylip_lines)
+
+        # Write the output to a file
+        if output_file:
+            with open(output_file + f".component_{c}.reads.phy", 'w') as f:
+                f.write(phylip_lines)
+        
+        consensus = get_consensus(hit_lines)
+        consensuses[c] = consensus
+    
+    # Write the consensus to a fasta file
     if output_file:
-        with open(output_file + ".reads.phy", 'w') as f:
-            f.write(phylip_lines)
+        with open(output_file + ".consensus.fasta", 'w') as f:
+            for c, consensus in consensuses.items():
+                f.write(f">component_{c}\n")
+                f.write(consensus + "\n")
     
 if __name__ == "__main__":
 

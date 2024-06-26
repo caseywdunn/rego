@@ -1,2 +1,4 @@
 *.phy
+*.fasta
+
 .DS_store

@@ -5,7 +5,7 @@ A tool to extract sequence reads based on oligo sequence (like primers) using re
 ## Example
 
 ```bash
-python rego.py TGGTTGATCCTGCCAGT Agalma_elegans.18s.64.extracted.fastq
+python rego.py --output Agalma_elegans.18s TGGTTGATCCTGCCAGT data/Agalma_elegans.18s.64.fastq
 ```
 
 
