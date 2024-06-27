@@ -139,6 +139,13 @@ class TestRegoMethods(unittest.TestCase):
                 ReadHit(      "AAACGCGTGTACTGGGATTCGATTCCCTTAACAGGTCAGTCGAGTGCC", 0, 7),
                 ReadHit("GGGGGGGGGCCCCCCCTTTTTTTTAAAAAA", 0, 7)]
         self.assertEqual(find_components(hits, 20), [[0, 1], [2]])
+    
+    def test_get_consensus(self):
+        lines = ["AGTAACAAACGCGTGTACTGGGATTCGATTCCCTTAACAGGTCAGTCG----------",
+                 "------AAACGCGTGTACTGGGATTCGATTCCCTTAACAGGTCAGTCGAGTGCC----",
+                 "------------GTGTACTGGGATTCGATTCCCTTAACAGGTCAGTCGAGTGCCAATG"]
+        self.assertEqual(get_consensus(lines), "AGTAACAAACGCGTGTACTGGGATTCGATTCCCTTAACAGGTCAGTCGAGTGCCAATG")
+
 
 
 
@@ -203,6 +210,12 @@ def get_consensus(lines):
     # Create a numpy array where each row is a line
     # and each column is a nucleotide
     # The lines are already padded
+
+    # Assert that all lines are the same length and nonzero length
+    line_length = len(lines[0])
+    assert line_length > 0
+    for line in lines:
+        assert len(line) == line_length
 
     n = len(lines)
     m = len(lines[0])
@@ -278,7 +291,7 @@ def main(oligo, input_file, output_file, before, after, max_hits):
     consensuses = dict()
     
     for c, group in enumerate(hits_grouped):
-        print(f"Component {c + 1}")
+        print(f"Component {c}")
         for hit in group:
             print(hit.get_seq())
         print()
@@ -299,23 +312,23 @@ def main(oligo, input_file, output_file, before, after, max_hits):
             longest_line = max(longest_line, len(new_line))
             hit_lines.append(new_line)
         
-        # Loop through the hit_lines and:
-        # - pad the trailing ends with - to make them all the same length
-        # add a line label
+        # Loop through the hit_lines and
+        # pad the trailing ends with - to make them all the same length
         for i in range(len(hit_lines)):
-            line = hit_lines[i].ljust(longest_line, '-')
-            label = f"read_{i}".ljust(12)
-            hit_lines[i] = f"{label}    {line}"
+            hit_lines[i] = hit_lines[i].ljust(longest_line, '-')
 
         # Create a string that has all the lines in phylip format
-        phylip_lines = f"{len(hit_lines)} {longest_line}\n" + "\n".join(hit_lines)
+        phylip_text = f"{len(hit_lines)} {longest_line}\n"
+        for i in range(len(hit_lines)):
+            label = f"read_{i}".ljust(12)
+            phylip_text += f"{label}  {hit_lines[i]}\n"
         print(f"Phylip format for component {c}")
-        print(phylip_lines)
+        print(phylip_text)
 
         # Write the output to a file
         if output_file:
             with open(output_file + f".component_{c}.reads.phy", 'w') as f:
-                f.write(phylip_lines)
+                f.write(phylip_text)
         
         consensus = get_consensus(hit_lines)
         consensuses[c] = consensus
