@@ -337,7 +337,8 @@ def main(oligo, input_file, output_file, before, after, max_hits):
     if output_file:
         with open(output_file + ".consensus.fasta", 'w') as f:
             for c, consensus in consensuses.items():
-                f.write(f">component_{c}\n")
+                num_reads = len(hits_grouped[c])
+                f.write(f">component_{c}_nreads_{num_reads}\n")
                 f.write(consensus + "\n")
     
 if __name__ == "__main__":
